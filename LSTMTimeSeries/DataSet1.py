@@ -1,10 +1,12 @@
+if __package__:
+    from .paths import training_workbook, feature_csv
+else:
+    from paths import training_workbook, feature_csv
+
 # 这个代码用于数据的读取和测试
-import re
-from tokenize import group
 import pandas as pd
 from matplotlib import pyplot as plt
-from sklearn.preprocessing import MinMaxScaler, LabelEncoder
-from torch import t
+from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 
 def rescale():
@@ -19,7 +21,7 @@ def rescale():
     # 构建路径并读取文件
     for c in c_values:
         # 根据 c 构建文件路径
-        filepath = fr'C:\Users\Lenovo\OneDrive\A_CodePython\MachineLearingQC\TimeSeriesPrediction\train\M0{c}.xlsx'
+        filepath = training_workbook(c)
         
         # 读取 Excel 文件
         df = pd.read_excel(filepath)
@@ -44,7 +46,7 @@ def rescale():
 
 
 def DealWithOutliers(c):
-    data=pd.read_excel(fr'C:\Users\Lenovo\OneDrive\A_CodePython\MachineLearingQC\TimeSeriesPrediction\train\M0'+c+'_normalized.xlsx')
+    data=pd.read_excel(training_workbook(c, normalized=True))
     data=data.iloc[:,1:]
   
     Q1=data['放电容量/Ah'].quantile(0.25)
@@ -63,62 +65,10 @@ def DealWithOutliers(c):
 
 
 
-def ReadInput(m):
-
-    def time_to_seconds(t):
-        return t.hour * 1 + t.minute / 60 + t.second/3600
-
-    def readdetails(m):
-        # we use this function to read 详细数据
-
-        def create_vector(df):
-            # 创建一个1*5的矢量，初始值为0
-            vector = [0] * 5
-            for _, row in df.iterrows():
-                # 工步号从1-5，填入到矢量的对应位置
-                if 1 <= row['工步号'] <= 5:
-                    vector[row['工步号'] - 1] = row['工步时间_h']
-            return vector
-
-        # 我们从详细数据中读取每一步的工作数据
-        xls = pd.ExcelFile(fr'C:\Users\Lenovo\OneDrive\A_CodePython\MachineLearingQC\TimeSeriesPrediction\train\M0'+m+'.xlsx')
-        sheet_names = xls.sheet_names
-
-        # 筛选出以 "详细数据" 开头的 sheet 名称
-        target_sheets = [sheet for sheet in sheet_names if sheet.startswith("详细数据")]
-
-        # 初始化一个空的 DataFrame
-        all_data = pd.DataFrame()
-
-        # 循环读取每个符合条件的 sheet，并将数据整合
-        for sheet in target_sheets:
-            # 读取当前 sheet
-            df = pd.read_excel(xls, sheet_name=sheet)
-            
-            # 将当前 sheet 的数据添加到 all_data 中
-            all_data = pd.concat([all_data, df], ignore_index=True)
-
-        # 读取流程时间
-        changes = all_data['工步号'] != all_data['工步号'].shift(-1)
-
-        selected_rows = all_data[changes]
-        selected_rows['工步时间_h'] = selected_rows['工步时间'].apply(time_to_seconds)
-
-        # 进一步处理
-        result = pd.DataFrame(columns=['循环号', '矢量'])
-        rows = []  # 用于暂存每个循环号的结果
-        for cycle, group in selected_rows.groupby('循环号'):
-            vector = create_vector(group)
-            rows.append({'循环号': cycle, '矢量': vector})
-
-        # 使用 pd.concat() 将所有结果整合到 result DataFrame 中
-        result = pd.concat([result, pd.DataFrame(rows)], ignore_index=True)
-        
-        return result
-
-    data=readdetails(m)
-
-    return data       
+if __package__:
+    from .dataset_io import ReadInput
+else:
+    from dataset_io import ReadInput
 
 
 
@@ -145,7 +95,7 @@ def GeneratingInput(m):
     print(data)
     data['矢量'] = data.apply(lambda row: row['矢量'] + [row['放电容量/Ah']], axis=1)
 
-    filename='C:\\Users\\Lenovo\\OneDrive\\A_CodePython\\MachineLearingQC\\TimeSeriesPrediction\\NewDataM0'+m+'.csv'
+    filename=feature_csv(m)
 
     data = data.iloc[:-3]
     data.to_csv(filename)
@@ -159,4 +109,3 @@ if __name__=='__main__':
     print(os.getcwd())
     rescale()
     GeneratingInput('13')
-    

@@ -1,3 +1,23 @@
+if __package__:
+    from .models import LSTMModel
+else:
+    from models import LSTMModel
+
+if __package__:
+    from .io_helpers import str_to_list
+else:
+    from io_helpers import str_to_list
+
+if __package__:
+    from .windowing import create_sliding_window as _create_sliding_window
+else:
+    from windowing import create_sliding_window as _create_sliding_window
+
+if __package__:
+    from .paths import feature_csv
+else:
+    from paths import feature_csv
+
 # 交替训练     
 
 from matplotlib import pyplot as plt
@@ -8,14 +28,9 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.model_selection import train_test_split
 import pandas as pd
-import ast
 
 def create_sliding_window(data_x, data_y, window_size):
-    X, y = [], []
-    for i in range(len(data_x) - window_size-200):
-        X.append(data_x[i:i + window_size])  # 获取窗口内的值
-        y.append(data_y[i + window_size])     # 获取窗口外的目标值
-    return torch.stack(X), torch.stack(y)
+    return _create_sliding_window(data_x, data_y, window_size, reserved_tail=200)
 
 def train_alternating():
     num_epochs = 200
@@ -91,65 +106,56 @@ def train_alternating():
 
 
 # 定义RNN的模型类
-class LSTMModel(nn.Module):
-    def __init__(self, input_size=1, hidden_size=50, output_size=1):
-        super(LSTMModel, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
-        self.fc = nn.Linear(hidden_size, output_size)
 
-    def forward(self, x):
-        out, _ = self.lstm(x)
-        out = self.fc(out[:, -1, :])  # 只取最后一个时间步的输出
-        return out
 
 
 # 实例化模型
-input_size = 6
-hidden_size = 30
-output_size = 1
-model = LSTMModel(input_size, hidden_size, output_size)
+if __name__ == "__main__":
+    input_size = 6
+    hidden_size = 30
+    output_size = 1
+    model = LSTMModel(input_size, hidden_size, output_size)
 
-# 定义损失函数
-loss_fn = nn.MSELoss()
+    # 定义损失函数
+    loss_fn = nn.MSELoss()
 
-# 定义优化器
-weight_decay = 0
-optimizer = optim.Adam(model.parameters(), lr=0.1, weight_decay=weight_decay)
+    # 定义优化器
+    weight_decay = 0
+    optimizer = optim.Adam(model.parameters(), lr=0.1, weight_decay=weight_decay)
 
-# 数据的读取
-def str_to_list(s):
-    return ast.literal_eval(s)
+    # 数据的读取
 
-data = pd.read_csv('C:\\Users\\Lenovo\\OneDrive\\A_CodePython\\MachineLearingQC\\TimeSeriesPrediction\\NewDataM001.csv', converters={'矢量': str_to_list})
 
-# 读取两个时间序列数据
-x1 = torch.tensor(data['矢量'], dtype=torch.float32)  # 第一个序列的输入
-y1 = torch.tensor(data['放电容量/Ah'], dtype=torch.float32)  # 第一个序列的目标
+    data = pd.read_csv(feature_csv('01'), converters={'矢量': str_to_list})
 
-data = pd.read_csv('C:\\Users\\Lenovo\\OneDrive\\A_CodePython\\MachineLearingQC\\TimeSeriesPrediction\\NewDataM012.csv', converters={'矢量': str_to_list})
+    # 读取两个时间序列数据
+    x1 = torch.tensor(data['矢量'], dtype=torch.float32)  # 第一个序列的输入
+    y1 = torch.tensor(data['放电容量/Ah'], dtype=torch.float32)  # 第一个序列的目标
 
-x2 = torch.tensor(data['矢量'], dtype=torch.float32)  # 第二个序列的输入
-y2 = torch.tensor(data['放电容量/Ah'], dtype=torch.float32)  # 第二个序列的目标
+    data = pd.read_csv(feature_csv('12'), converters={'矢量': str_to_list})
 
-# 创建滑动窗口的输入和目标
-window_size = 5
-x_windows1, y_windows1 = create_sliding_window(x1, y1, window_size)
-x_windows2, y_windows2 = create_sliding_window(x2, y2, window_size)
+    x2 = torch.tensor(data['矢量'], dtype=torch.float32)  # 第二个序列的输入
+    y2 = torch.tensor(data['放电容量/Ah'], dtype=torch.float32)  # 第二个序列的目标
 
-# 划分训练集和测试集
-x_train1, x_test1, y_train1, y_test1 = train_test_split(x_windows1, y_windows1, test_size=0.2, random_state=42)
-x_train2, x_test2, y_train2, y_test2 = train_test_split(x_windows2, y_windows2, test_size=0.2, random_state=42)
+    # 创建滑动窗口的输入和目标
+    window_size = 5
+    x_windows1, y_windows1 = create_sliding_window(x1, y1, window_size)
+    x_windows2, y_windows2 = create_sliding_window(x2, y2, window_size)
 
-# 创建数据集和数据加载器
-train_dataset1 = TensorDataset(x_train1, y_train1)
-test_dataset1 = TensorDataset(x_test1, y_test1)
+    # 划分训练集和测试集
+    x_train1, x_test1, y_train1, y_test1 = train_test_split(x_windows1, y_windows1, test_size=0.2, random_state=42)
+    x_train2, x_test2, y_train2, y_test2 = train_test_split(x_windows2, y_windows2, test_size=0.2, random_state=42)
 
-train_dataset2 = TensorDataset(x_train2, y_train2)
-test_dataset2 = TensorDataset(x_test2, y_test2)
+    # 创建数据集和数据加载器
+    train_dataset1 = TensorDataset(x_train1, y_train1)
+    test_dataset1 = TensorDataset(x_test1, y_test1)
 
-train_loader1 = DataLoader(train_dataset1, batch_size=1, shuffle=True)
-train_loader2 = DataLoader(train_dataset2, batch_size=1, shuffle=True)
+    train_dataset2 = TensorDataset(x_train2, y_train2)
+    test_dataset2 = TensorDataset(x_test2, y_test2)
 
-test_loader = DataLoader(test_dataset1, batch_size=1, shuffle=False)  # 假设测试集相同
+    train_loader1 = DataLoader(train_dataset1, batch_size=1, shuffle=True)
+    train_loader2 = DataLoader(train_dataset2, batch_size=1, shuffle=True)
 
-train_alternating() # 开始用总损失函数训练
+    test_loader = DataLoader(test_dataset1, batch_size=1, shuffle=False)  # 假设测试集相同
+
+    train_alternating() # 开始用总损失函数训练

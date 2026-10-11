@@ -1,3 +1,23 @@
+if __package__:
+    from .models import LSTMModel
+else:
+    from models import LSTMModel
+
+if __package__:
+    from .io_helpers import str_to_list
+else:
+    from io_helpers import str_to_list
+
+if __package__:
+    from .windowing import create_sliding_window as _create_sliding_window
+else:
+    from windowing import create_sliding_window as _create_sliding_window
+
+if __package__:
+    from .paths import feature_csv
+else:
+    from paths import feature_csv
+
 # 我们采用LSTM方法来进行拟合
 
 from matplotlib import pyplot as plt
@@ -7,9 +27,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 from sklearn.model_selection import train_test_split  # 用于划分数据集
-from DataSet import GeneratingInput
 import pandas as pd
-import ast 
 
 
 def train1():
@@ -112,71 +130,55 @@ def train2():
 
 
 # 定义RNN的模型类
-class LSTMModel(nn.Module):
-    def __init__(self, input_size=1, hidden_size=50, output_size=1):
-        super(LSTMModel, self).__init__()
-        self.lstm = nn.LSTM(input_size, hidden_size, batch_first=True)
-        self.fc = nn.Linear(hidden_size, output_size)
 
-    def forward(self, x):
-        out, _ = self.lstm(x)
-        out = self.fc(out[:, -1, :])  # 只取最后一个时间步的输出
-        return out
 
 # 实例化模型，创建一个模型，给定输入层大小，隐藏层大小和输出层大小
-input_size = 6
-hidden_size = 30
-output_size = 1
+if __name__ == "__main__":
+    input_size = 6
+    hidden_size = 30
+    output_size = 1
 
 
-model = LSTMModel(input_size, hidden_size, output_size)
+    model = LSTMModel(input_size, hidden_size, output_size)
 
-# 定义损失函数
+    # 定义损失函数
 
-#loss_fn = nn.SmoothL1Loss()
-loss_fn = nn.MSELoss()    
-# 定义优化器
-weight_decay = 0
-optimizer = optim.Adam(model.parameters(), lr=0.1,weight_decay=weight_decay)
-#  动态调整学习率
-scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.1)
-
-
-# 数据的读取
-def str_to_list(s):
-    return ast.literal_eval(s)
-data = pd.read_csv('C:\\Users\\Lenovo\\OneDrive\\A_CodePython\\MachineLearingQC\\TimeSeriesPrediction\\NewDataM001.csv', converters={'矢量': str_to_list})
+    #loss_fn = nn.SmoothL1Loss()
+    loss_fn = nn.MSELoss()    
+    # 定义优化器
+    weight_decay = 0
+    optimizer = optim.Adam(model.parameters(), lr=0.1,weight_decay=weight_decay)
+    #  动态调整学习率
+    scheduler = optim.lr_scheduler.StepLR(optimizer, step_size=1000, gamma=0.1)
 
 
-# 第一列作为输入，第二列作为目标
-x = torch.tensor(data['矢量'], dtype=torch.float32)  # 第一列
-y = torch.tensor(data['放电容量/Ah'], dtype=torch.float32)  # 第二列
+    # 数据的读取
+
+    data = pd.read_csv(feature_csv('01'), converters={'矢量': str_to_list})
 
 
-
-# 创建滑动窗口的输入和目标
-def create_sliding_window(data_x, data_y, window_size):
-    X, y = [], []
-    for i in range(len(data_x) - window_size-200):
-        X.append(data_x[i:i + window_size])  # 获取窗口内的值
-        y.append(data_y[i + window_size])     # 获取窗口外的目标值
-    return torch.stack(X), torch.stack(y)
-
-# 设置窗口大小
-window_size = 5
-x_windows, y_windows = create_sliding_window(x, y, window_size)
-
-# 划分训练集和测试集
-x_train, x_test, y_train, y_test = train_test_split(x_windows, y_windows, test_size=0.2, random_state=42)
-
-# 创建数据集和数据加载器
-train_dataset = TensorDataset(x_train, y_train)
-test_dataset = TensorDataset(x_test, y_test)
-train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
-test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
-
-
-train1()
+    # 第一列作为输入，第二列作为目标
+    x = torch.tensor(data['矢量'], dtype=torch.float32)  # 第一列
+    y = torch.tensor(data['放电容量/Ah'], dtype=torch.float32)  # 第二列
 
 
 
+    # 创建滑动窗口的输入和目标
+    def create_sliding_window(data_x, data_y, window_size):
+        return _create_sliding_window(data_x, data_y, window_size, reserved_tail=200)
+
+    # 设置窗口大小
+    window_size = 5
+    x_windows, y_windows = create_sliding_window(x, y, window_size)
+
+    # 划分训练集和测试集
+    x_train, x_test, y_train, y_test = train_test_split(x_windows, y_windows, test_size=0.2, random_state=42)
+
+    # 创建数据集和数据加载器
+    train_dataset = TensorDataset(x_train, y_train)
+    test_dataset = TensorDataset(x_test, y_test)
+    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+
+
+    train1()
