@@ -1,10 +1,12 @@
+if __package__:
+    from .paths import training_workbook, feature_csv
+else:
+    from paths import training_workbook, feature_csv
+
 # 这个代码用于数据的读取和测试
-import re
-from tokenize import group
 import pandas as pd
 from matplotlib import pyplot as plt
-from sklearn.preprocessing import MinMaxScaler, LabelEncoder
-from torch import t
+from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 
 
@@ -19,7 +21,7 @@ def DataPlot():
     z=['01','03','06','12','13','16','19']
 
     for z1 in z:
-        data=pd.read_excel(fr'C:\Users\Lenovo\OneDrive\A_CodePython\MachineLearingQC\TimeSeriesPrediction\train\M0'+z1+'.xlsx')
+        data=pd.read_excel(training_workbook(z1))
 
     # 去掉第一行数据编号
         data=data.iloc[:,1:]
@@ -30,7 +32,7 @@ def DataPlot():
     return 
 
 def DealWithOutliers(c):
-    data=pd.read_excel(fr'C:\Users\Lenovo\OneDrive\A_CodePython\MachineLearingQC\TimeSeriesPrediction\train\M0'+c+'.xlsx')
+    data=pd.read_excel(training_workbook(c))
     data=data.iloc[:,1:]
     # print(data.describe())
     
@@ -72,6 +74,9 @@ def custom_minmax_scaler(data, new_min=0, new_max=1):
     data_min = np.min(data)
     data_max = np.max(data)
     
+    if data_max == data_min:
+        return np.full_like(data, new_min, dtype=float)
+
     scaled_data = new_min + (data - data_min) * (new_max - new_min) / (data_max - data_min)
     return scaled_data
 
@@ -84,7 +89,7 @@ def GeneratingInput1(window_size=5):
     # 对整个 data 进行归一化
     new_min = 100
     new_max = 200
-    data1_scaled= data1 .apply(lambda x: custom_minmax_scaler(x, new_min, new_max))
+    data1_scaled = custom_minmax_scaler(data1, new_min, new_max)
     # print(data1_scaled)
     
     
@@ -104,84 +109,10 @@ def GeneratingInput1(window_size=5):
 
 
 
-def ReadInput(m):
-
-    def time_to_seconds(t):
-        return t.hour * 1 + t.minute / 60 + t.second/3600
-
-    # def readfile(m):
-    #     # we use this function to read 工步数据
-    #     data=pd.read_excel(fr'C:\Users\Lenovo\OneDrive\A_CodePython\MachineLearingQC\TimeSeriesPrediction\train\M0'+m+'.xlsx',sheet_name='工步数据')
-
-    #     # 对于工步数据表格中的“工步号”进行处理
-    #     x=data['工步号']
-    #     x1=(x-x.min())/(x.max()-x.min())
-    #     data['工步号']=x1
-
-
-    #     # 对 “工步状态”进行处理
-    #     label_encoder = LabelEncoder()
-    #     data['工步状态'] = label_encoder.fit_transform(data['工步状态'])
-    #     # 归一化处理
-    #     x=data['工步状态']
-    #     x1=(x-x.min())/(x.max()-x.min())
-    #     data['工步状态']=x1
-
-    #     # 或许我们直接可以将工步号变成一个1*5的矢量，里面记录总的工作时间
-
-    #     return x1
-    
-    def readdetails(m):
-        # we use this function to read 详细数据
-
-        def create_vector(df):
-            # 创建一个1*5的矢量，初始值为0
-            vector = [0] * 5
-            for _, row in df.iterrows():
-                # 工步号从1-5，填入到矢量的对应位置
-                if 1 <= row['工步号'] <= 5:
-                    vector[row['工步号'] - 1] = row['工步时间_h']
-            return vector
-
-        # 我们从详细数据中读取每一步的工作数据
-        xls = pd.ExcelFile(fr'C:\Users\Lenovo\OneDrive\A_CodePython\MachineLearingQC\TimeSeriesPrediction\train\M0'+m+'.xlsx')
-        sheet_names = xls.sheet_names
-
-        # 筛选出以 "详细数据" 开头的 sheet 名称
-        target_sheets = [sheet for sheet in sheet_names if sheet.startswith("详细数据")]
-
-        # 初始化一个空的 DataFrame
-        all_data = pd.DataFrame()
-
-        # 循环读取每个符合条件的 sheet，并将数据整合
-        for sheet in target_sheets:
-            # 读取当前 sheet
-            df = pd.read_excel(xls, sheet_name=sheet)
-            
-            # 将当前 sheet 的数据添加到 all_data 中
-            all_data = pd.concat([all_data, df], ignore_index=True)
-
-        # 读取流程时间
-        changes = all_data['工步号'] != all_data['工步号'].shift(-1)
-
-        selected_rows = all_data[changes]
-        selected_rows['工步时间_h'] = selected_rows['工步时间'].apply(time_to_seconds)
-
-        # 进一步处理
-        result = pd.DataFrame(columns=['循环号', '矢量'])
-        rows = []  # 用于暂存每个循环号的结果
-        for cycle, group in selected_rows.groupby('循环号'):
-            vector = create_vector(group)
-            rows.append({'循环号': cycle, '矢量': vector})
-
-        # 使用 pd.concat() 将所有结果整合到 result DataFrame 中
-        result = pd.concat([result, pd.DataFrame(rows)], ignore_index=True)
-        
-        return result
-
-    data=readdetails(m)
-
-    return data       
+if __package__:
+    from .dataset_io import ReadInput
+else:
+    from dataset_io import ReadInput
 
 
 def GeneratingInput(window_size=5):
@@ -206,7 +137,7 @@ def GeneratingInput(window_size=5):
     print(data)
     data['矢量'] = data.apply(lambda row: row['矢量'] + [row['放电容量/Ah']], axis=1)
 
-    filename='C:\\Users\\Lenovo\\OneDrive\\A_CodePython\\MachineLearingQC\\TimeSeriesPrediction\\NewDataM0'+m+'.csv'
+    filename=feature_csv(m)
 
  
     data.to_csv(filename)
@@ -219,4 +150,3 @@ if __name__=='__main__':
     import os
     print(os.getcwd())
     GeneratingInput()
-    
